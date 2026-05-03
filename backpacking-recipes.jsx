@@ -1,0 +1,652 @@
+// localStorage shim replacing window.storage
+window.storage = {
+  get: async (key) => {
+    const v = localStorage.getItem(key);
+    return v ? { key, value: v } : null;
+  },
+  set: async (key, value) => {
+    localStorage.setItem(key, value);
+    return { key, value };
+  },
+  delete: async (key) => {
+    localStorage.removeItem(key);
+    return { key, deleted: true };
+  },
+  list: async (prefix) => {
+    const keys = Object.keys(localStorage).filter(k => !prefix || k.startsWith(prefix));
+    return { keys };
+  },
+};
+
+
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+
+const GRAMS_TO_OZ = 0.03527396;
+
+const defaultIngredients = [
+  { id: "1", name: "Instant Rice", rehydrationRatio: 1.5, calPerG: 3.6, fatPerG: 0.005, sodiumPerG: 0.002, carbPerG: 0.79, fiberPerG: 0.01, proteinPerG: 0.07 },
+  { id: "2", name: "Freeze-Dried Chicken", rehydrationRatio: 2.0, calPerG: 3.1, fatPerG: 0.04, sodiumPerG: 0.015, carbPerG: 0.0, fiberPerG: 0.0, proteinPerG: 0.7 },
+  { id: "3", name: "Dehydrated Black Beans", rehydrationRatio: 2.5, calPerG: 3.4, fatPerG: 0.01, sodiumPerG: 0.001, carbPerG: 0.47, fiberPerG: 0.15, proteinPerG: 0.21 },
+  { id: "4", name: "Tomato Powder", rehydrationRatio: 4.0, calPerG: 3.0, fatPerG: 0.005, sodiumPerG: 0.12, carbPerG: 0.56, fiberPerG: 0.16, proteinPerG: 0.12 },
+];
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// ─── Icons ───
+const Icons = {
+  plus: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>,
+  edit: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z"/></svg>,
+  trash: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 4 4 14 12 14 13 4"/><line x1="1" y1="4" x2="15" y2="4"/><path d="M6 4V2h4v2"/></svg>,
+  water: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c0 0-8 9.27-8 14a8 8 0 0016 0C20 11.27 12 2 12 2z"/></svg>,
+  back: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="13" y1="8" x2="3" y2="8"/><polyline points="7 4 3 8 7 12"/></svg>,
+  mountain: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 20L9 6l4 8 3-4 5 10H3z"/></svg>,
+  fire: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c1 4-2 6-2 10a4 4 0 008 0c0-4-3-5-3-8 0 0-1 2-3 2s-2-2 0-4z"/></svg>,
+  bag: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="18" rx="2"/><path d="M8 4V2h8v2"/><line x1="4" y1="10" x2="20" y2="10"/></svg>,
+  download: <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9"/><polyline points="4 8 8 12 12 8"/><path d="M2 14h12"/></svg>,
+  upload: <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 11V2"/><polyline points="4 5 8 1 12 5"/><path d="M2 14h12"/></svg>,
+  print: <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 6 4 1 12 1 12 6"/><rect x="2" y="6" width="12" height="6" rx="1"/><polyline points="4 10 4 15 12 15 12 10"/></svg>,
+  servings: <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="5" r="3"/><circle cx="4" cy="12" r="2.5"/><circle cx="12" cy="12" r="2.5"/></svg>,
+};
+
+// ─── Styles ───
+const font = `'DM Sans', 'Helvetica Neue', sans-serif`;
+const mono = `'DM Mono', 'Courier New', monospace`;
+
+const C = {
+  bg: "#1a1a17", surface: "#232320", surfaceHover: "#2c2c28", card: "#282825",
+  border: "#3a3a34", borderLight: "#4a4a42", text: "#e8e4d9", textMuted: "#9e9a8b",
+  textDim: "#6e6b5f", accent: "#c97b3a", accentDim: "#a06228", accentGlow: "rgba(201,123,58,0.12)",
+  green: "#6a9f5b", greenDim: "#4a7a3e", blue: "#5b8fa0", red: "#b85c4a", redDim: "#8a4535",
+  tag: "#3a3826", tagText: "#c9bc8a", gold: "#d4a843", silver: "#a0a0a0", bronze: "#b07840",
+};
+
+// ─── Reusable Components ───
+function Button({ children, onClick, variant = "default", small, style, disabled, ...props }) {
+  const base = {
+    fontFamily: font, fontSize: small ? 12 : 13, fontWeight: 600,
+    border: "none", borderRadius: 6, cursor: disabled ? "default" : "pointer",
+    display: "inline-flex", alignItems: "center", gap: 6,
+    padding: small ? "5px 10px" : "8px 16px",
+    transition: "all 0.15s ease", opacity: disabled ? 0.4 : 1, letterSpacing: "0.02em",
+  };
+  const variants = {
+    default: { background: C.surface, color: C.text, border: `1px solid ${C.border}` },
+    accent: { background: C.accent, color: "#fff" },
+    danger: { background: "transparent", color: C.red, border: `1px solid ${C.red}44` },
+    ghost: { background: "transparent", color: C.textMuted },
+    green: { background: C.green, color: "#fff" },
+  };
+  return <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...style }} {...props}>{children}</button>;
+}
+
+function Input({ label, unit, style, ...props }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {label && <label style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</label>}
+      <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+        <input style={{ fontFamily: mono, fontSize: 14, padding: "8px 10px", background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: unit ? "6px 0 0 6px" : 6, outline: "none", width: "100%", ...style }} {...props} />
+        {unit && <span style={{ fontFamily: mono, fontSize: 11, padding: "8px 8px", background: C.surface, color: C.textDim, border: `1px solid ${C.border}`, borderLeft: "none", borderRadius: "0 6px 6px 0", whiteSpace: "nowrap" }}>{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+function Modal({ open, onClose, title, children, width = 480 }) {
+  if (!open) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, width: "90%", maxWidth: width, maxHeight: "90vh", overflow: "auto", boxShadow: "0 24px 80px rgba(0,0,0,0.5)" }}>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, fontFamily: font, fontSize: 16, fontWeight: 700, color: C.text }}>{title}</div>
+        <div style={{ padding: 20 }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, sub }) {
+  return (
+    <div style={{ textAlign: "center", padding: "60px 20px", color: C.textDim }}>
+      <div style={{ marginBottom: 12, opacity: 0.4 }}>{icon}</div>
+      <div style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.textMuted, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontFamily: font, fontSize: 13 }}>{sub}</div>
+    </div>
+  );
+}
+
+// ─── Ingredient Form ───
+function IngredientForm({ initial, onSave, onCancel }) {
+  const [f, setF] = useState(initial || { name: "", rehydrationRatio: "", calPerG: "", fatPerG: "", sodiumPerG: "", carbPerG: "", fiberPerG: "", proteinPerG: "" });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const valid = f.name.trim() && [f.rehydrationRatio, f.calPerG, f.fatPerG, f.sodiumPerG, f.carbPerG, f.fiberPerG, f.proteinPerG].every(v => v !== "" && !isNaN(v) && Number(v) >= 0) && Number(f.rehydrationRatio) > 0;
+  const fields = [
+    { key: "rehydrationRatio", label: "Rehydration Ratio", unit: "× water" },
+    { key: "calPerG", label: "Calories", unit: "per g" },
+    { key: "fatPerG", label: "Fat", unit: "g / g" },
+    { key: "sodiumPerG", label: "Sodium", unit: "mg / g" },
+    { key: "carbPerG", label: "Non-Fiber Carbs", unit: "g / g" },
+    { key: "fiberPerG", label: "Fiber", unit: "g / g" },
+    { key: "proteinPerG", label: "Protein", unit: "g / g" },
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <Input label="Ingredient Name" value={f.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Freeze-Dried Peas" style={{ borderRadius: 6 }} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {fields.map(({ key, label, unit }) => <Input key={key} label={label} unit={unit} type="number" step="any" min="0" value={f[key]} onChange={e => set(key, e.target.value)} />)}
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button variant="accent" disabled={!valid} onClick={() => {
+          const out = { ...f }; for (const k of Object.keys(out)) if (k !== "name" && k !== "id") out[k] = Number(out[k]); onSave(out);
+        }}>Save</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Compute recipe totals ───
+function computeTotals(items, ingMap, scale = 1) {
+  let water = 0, cal = 0, fat = 0, sodium = 0, carb = 0, fiber = 0, protein = 0, dryWeight = 0;
+  for (const it of items) {
+    const ing = ingMap[it.ingredientId]; if (!ing) continue;
+    const g = it.grams * scale;
+    dryWeight += g; water += g * ing.rehydrationRatio; cal += g * ing.calPerG;
+    fat += g * ing.fatPerG; sodium += g * ing.sodiumPerG; carb += g * ing.carbPerG;
+    fiber += g * ing.fiberPerG; protein += g * ing.proteinPerG;
+  }
+  return { water, waterOz: water * GRAMS_TO_OZ, cal, fat, sodium, carb, fiber, protein, dryWeight, dryWeightOz: dryWeight * GRAMS_TO_OZ };
+}
+
+// ─── Print Recipe Card ───
+function printRecipeCard(recipe, ingMap, servings) {
+  const scale = servings / (recipe.servings || 1);
+  const items = recipe.items || [];
+  const t = computeTotals(items, ingMap, scale);
+
+  const rows = items.map(it => {
+    const ing = ingMap[it.ingredientId]; if (!ing) return "";
+    const g = it.grams * scale;
+    return `<tr><td style="padding:6px 10px;border-bottom:1px solid #ddd;font-weight:500">${ing.name}</td><td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;font-family:monospace">${g.toFixed(1)}g</td><td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;font-family:monospace">${(g * ing.rehydrationRatio).toFixed(0)}g</td><td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;font-family:monospace">${(g * ing.calPerG).toFixed(0)}</td></tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html><html><head><title>${recipe.name} — TrailBag</title>
+<style>
+@media print{body{margin:0}.no-print{display:none!important}}
+body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:520px;margin:24px auto;color:#222;line-height:1.5}
+h1{font-size:22px;margin:0 0 4px;border-bottom:2px solid #222;padding-bottom:6px}
+.meta{font-size:13px;color:#666;margin-bottom:16px}
+.cards{display:flex;gap:10px;margin-bottom:16px}
+.sc{flex:1;border:1px solid #ccc;border-radius:8px;padding:10px;text-align:center}
+.sc .v{font-size:22px;font-weight:800;font-family:monospace}
+.sc .l{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px}
+th{padding:6px 10px;text-align:left;border-bottom:2px solid #222;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#666}
+th:not(:first-child){text-align:right}
+.nut{display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;font-size:13px;border-top:1px solid #ccc;padding-top:10px}
+.nut .r{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #eee}
+.nut .r b{font-family:monospace}
+.pb{position:fixed;bottom:20px;right:20px;padding:10px 20px;background:#c97b3a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+</style></head><body>
+<button class="no-print pb" onclick="window.print()">Print</button>
+<h1>${recipe.name}</h1>
+<div class="meta">${servings} serving${servings !== 1 ? "s" : ""} · TrailBag Recipe Card</div>
+<div class="cards">
+<div class="sc"><div class="v">${t.waterOz.toFixed(1)} oz</div><div class="l">Water Needed</div><div style="font-size:11px;color:#999;font-family:monospace">${t.water.toFixed(0)}g</div></div>
+<div class="sc"><div class="v">${t.dryWeightOz.toFixed(1)} oz</div><div class="l">Dry Weight</div><div style="font-size:11px;color:#999;font-family:monospace">${t.dryWeight.toFixed(0)}g</div></div>
+<div class="sc"><div class="v">${t.cal.toFixed(0)}</div><div class="l">Total Calories</div></div>
+</div>
+<table><thead><tr><th>Ingredient</th><th>Dry</th><th>Water</th><th>Cal</th></tr></thead><tbody>${rows}</tbody></table>
+<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#666;margin-bottom:6px">Nutrition Totals</div>
+<div class="nut">
+<div class="r"><span>Calories</span><b>${t.cal.toFixed(1)} kcal</b></div>
+<div class="r"><span>Fat</span><b>${t.fat.toFixed(1)} g</b></div>
+<div class="r"><span>Sodium</span><b>${t.sodium.toFixed(1)} mg</b></div>
+<div class="r"><span>Non-Fiber Carbs</span><b>${t.carb.toFixed(1)} g</b></div>
+<div class="r"><span>Fiber</span><b>${t.fiber.toFixed(1)} g</b></div>
+<div class="r"><span>Protein</span><b>${t.protein.toFixed(1)} g</b></div>
+</div>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
+// ─── Recipe Detail View ───
+function RecipeDetail({ recipe, ingredients, onBack, onUpdate, onDelete }) {
+  const [addingIngredient, setAddingIngredient] = useState(false);
+  const [selectedIngId, setSelectedIngId] = useState("");
+  const [grams, setGrams] = useState("");
+  const [editing, setEditing] = useState(null);
+  const [editName, setEditName] = useState(false);
+  const [nameVal, setNameVal] = useState(recipe.name);
+  const [viewServings, setViewServings] = useState(recipe.servings || 1);
+
+  // Sync viewServings if base changes externally
+  useEffect(() => { setViewServings(recipe.servings || 1); }, [recipe.servings]);
+
+  const ingMap = useMemo(() => Object.fromEntries(ingredients.map(i => [i.id, i])), [ingredients]);
+  const items = recipe.items || [];
+  const baseServings = recipe.servings || 1;
+  const scale = viewServings / baseServings;
+  const totals = useMemo(() => computeTotals(items, ingMap, scale), [items, ingMap, scale]);
+
+  const addItem = () => {
+    if (!selectedIngId || !grams || isNaN(grams) || Number(grams) <= 0) return;
+    onUpdate({ ...recipe, items: [...items, { ingredientId: selectedIngId, grams: Number(grams) }] });
+    setSelectedIngId(""); setGrams(""); setAddingIngredient(false);
+  };
+  const removeItem = (idx) => onUpdate({ ...recipe, items: items.filter((_, i) => i !== idx) });
+  const saveEdit = (idx) => {
+    if (!editing || isNaN(editing.grams) || Number(editing.grams) <= 0) return;
+    onUpdate({ ...recipe, items: items.map((it, i) => i === idx ? { ...it, grams: Number(editing.grams) } : it) });
+    setEditing(null);
+  };
+  const saveName = () => { if (nameVal.trim()) onUpdate({ ...recipe, name: nameVal.trim() }); setEditName(false); };
+  const saveBaseServings = (val) => {
+    const n = Math.max(1, parseInt(val) || 1);
+    onUpdate({ ...recipe, servings: n });
+  };
+
+  const availableIngs = ingredients.filter(i => !items.some(it => it.ingredientId === i.id));
+  const calPerOz = totals.dryWeightOz > 0 ? totals.cal / totals.dryWeightOz : 0;
+
+  const nutrientBar = (label, value, unit, color) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
+      <span style={{ fontFamily: font, fontSize: 13, color: C.textMuted }}>{label}</span>
+      <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 600, color }}>{value.toFixed(1)} <span style={{ fontSize: 11, color: C.textDim }}>{unit}</span></span>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+        <Button variant="ghost" onClick={onBack} small>{Icons.back} Back</Button>
+        <div style={{ flex: 1 }} />
+        <Button variant="ghost" small onClick={() => printRecipeCard(recipe, ingMap, viewServings)} style={{ color: C.blue }}>{Icons.print} Print</Button>
+        <Button variant="danger" small onClick={() => { onDelete(recipe.id); onBack(); }}>{Icons.trash} Delete</Button>
+      </div>
+
+      {/* Title */}
+      <div style={{ marginBottom: 16 }}>
+        {editName ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={nameVal} onChange={e => setNameVal(e.target.value)} onKeyDown={e => e.key === "Enter" && saveName()}
+              autoFocus style={{ fontFamily: font, fontSize: 24, fontWeight: 800, background: C.bg, color: C.text, border: `1px solid ${C.accent}`, borderRadius: 6, padding: "4px 10px", flex: 1 }} />
+            <Button variant="accent" small onClick={saveName}>Save</Button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => { setEditName(true); setNameVal(recipe.name); }}>
+            <h1 style={{ fontFamily: font, fontSize: 24, fontWeight: 800, color: C.text, margin: 0 }}>{recipe.name}</h1>
+            <span style={{ color: C.textDim, opacity: 0.5 }}>{Icons.edit}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Serving Size Scaler */}
+      <div style={{
+        background: `linear-gradient(135deg, ${C.green}18, ${C.green}06)`,
+        border: `1px solid ${C.green}44`, borderRadius: 10, padding: "12px 16px",
+        marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+      }}>
+        <span style={{ color: C.green, display: "flex", alignItems: "center", gap: 6 }}>
+          {Icons.servings}
+          <span style={{ fontFamily: font, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Servings</span>
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button onClick={() => setViewServings(Math.max(1, viewServings - 1))}
+            style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.green}66`, background: "transparent", color: C.green, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>−</button>
+          <span style={{ fontFamily: mono, fontSize: 20, fontWeight: 800, color: C.text, minWidth: 28, textAlign: "center" }}>{viewServings}</span>
+          <button onClick={() => setViewServings(viewServings + 1)}
+            style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.green}66`, background: "transparent", color: C.green, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
+        </div>
+        {scale !== 1 && <span style={{ fontFamily: mono, fontSize: 11, color: C.textDim }}>×{scale.toFixed(2)} from base</span>}
+        {viewServings !== baseServings && (
+          <Button small variant="ghost" onClick={() => setViewServings(baseServings)} style={{ color: C.green, marginLeft: "auto" }}>Reset</Button>
+        )}
+        <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+          <span style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>Base servings:</span>
+          <input type="number" min="1" value={baseServings}
+            onChange={e => saveBaseServings(e.target.value)}
+            style={{ fontFamily: mono, fontSize: 12, width: 48, padding: "3px 6px", background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 4, textAlign: "center" }} />
+        </div>
+      </div>
+
+      {/* Water + Weight + Cal/oz Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+        <div style={{ background: `linear-gradient(135deg, ${C.blue}22, ${C.blue}08)`, border: `1px solid ${C.blue}44`, borderRadius: 10, padding: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6, color: C.blue }}>{Icons.water} <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Water</span></div>
+          <div style={{ fontFamily: mono, fontSize: 22, fontWeight: 800, color: C.text }}>{totals.waterOz.toFixed(1)} <span style={{ fontSize: 12, color: C.textMuted }}>oz</span></div>
+          <div style={{ fontFamily: mono, fontSize: 11, color: C.textDim }}>{totals.water.toFixed(0)}g</div>
+        </div>
+        <div style={{ background: `linear-gradient(135deg, ${C.accent}22, ${C.accent}08)`, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6, color: C.accent }}>{Icons.bag} <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Dry Wt</span></div>
+          <div style={{ fontFamily: mono, fontSize: 22, fontWeight: 800, color: C.text }}>{totals.dryWeightOz.toFixed(1)} <span style={{ fontSize: 12, color: C.textMuted }}>oz</span></div>
+          <div style={{ fontFamily: mono, fontSize: 11, color: C.textDim }}>{totals.dryWeight.toFixed(0)}g</div>
+        </div>
+        <div style={{ background: `linear-gradient(135deg, ${C.gold}22, ${C.gold}08)`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6, color: C.gold }}>{Icons.fire} <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Cal/oz</span></div>
+          <div style={{ fontFamily: mono, fontSize: 22, fontWeight: 800, color: C.text }}>{calPerOz.toFixed(0)}</div>
+          <div style={{ fontFamily: mono, fontSize: 11, color: C.textDim }}>{totals.cal.toFixed(0)} kcal total</div>
+        </div>
+      </div>
+
+      {/* Nutrition Card */}
+      <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, padding: 16, marginBottom: 20 }}>
+        <div style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+          Nutrition Totals{scale !== 1 ? ` (${viewServings} servings)` : ""}
+        </div>
+        {nutrientBar("Calories", totals.cal, "kcal", C.accent)}
+        {nutrientBar("Fat", totals.fat, "g", C.tagText)}
+        {nutrientBar("Sodium", totals.sodium, "mg", C.red)}
+        {nutrientBar("Non-Fiber Carbs", totals.carb, "g", C.blue)}
+        {nutrientBar("Fiber", totals.fiber, "g", C.green)}
+        {nutrientBar("Protein", totals.protein, "g", "#c9a05b")}
+      </div>
+
+      {/* Ingredients List */}
+      <div style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 16 }}>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em" }}>Ingredients ({items.length})</span>
+          <Button small variant="accent" onClick={() => setAddingIngredient(true)} disabled={availableIngs.length === 0}>{Icons.plus} Add</Button>
+        </div>
+        {items.length === 0 ? (
+          <EmptyState icon={Icons.bag} title="No ingredients yet" sub="Add ingredients to build your recipe" />
+        ) : items.map((it, idx) => {
+          const ing = ingMap[it.ingredientId]; if (!ing) return null;
+          const g = it.grams * scale;
+          const isEditing = editing?.index === idx;
+          return (
+            <div key={idx} style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.text }}>{ing.name}</div>
+                <div style={{ fontFamily: mono, fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                  {(g * ing.calPerG).toFixed(0)} cal · {(g * ing.rehydrationRatio).toFixed(0)}g water · {(g * ing.proteinPerG).toFixed(1)}g protein
+                </div>
+              </div>
+              {isEditing ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <input type="number" value={editing.grams} onChange={e => setEditing({ ...editing, grams: e.target.value })} onKeyDown={e => e.key === "Enter" && saveEdit(idx)}
+                    autoFocus style={{ fontFamily: mono, fontSize: 13, width: 60, padding: "4px 6px", background: C.bg, color: C.text, border: `1px solid ${C.accent}`, borderRadius: 4, textAlign: "right" }} />
+                  <span style={{ fontFamily: mono, fontSize: 11, color: C.textDim }}>g</span>
+                  <Button small variant="accent" onClick={() => saveEdit(idx)}>✓</Button>
+                  <Button small variant="ghost" onClick={() => setEditing(null)}>✕</Button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: C.accent }}>
+                    {scale === 1 ? `${it.grams}g` : `${g.toFixed(1)}g`}
+                  </span>
+                  {scale !== 1 && <span style={{ fontFamily: mono, fontSize: 10, color: C.textDim }}>(base {it.grams}g)</span>}
+                  <Button small variant="ghost" onClick={() => setEditing({ index: idx, grams: it.grams })}>{Icons.edit}</Button>
+                  <Button small variant="ghost" onClick={() => removeItem(idx)} style={{ color: C.red }}>{Icons.trash}</Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add Ingredient Modal */}
+      <Modal open={addingIngredient} onClose={() => setAddingIngredient(false)} title="Add Ingredient to Recipe" width={360}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.textMuted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Ingredient</label>
+            <select value={selectedIngId} onChange={e => setSelectedIngId(e.target.value)}
+              style={{ fontFamily: font, fontSize: 14, padding: "8px 10px", background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6 }}>
+              <option value="">Select...</option>
+              {availableIngs.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+          </div>
+          <Input label="Amount (dry, per base serving)" unit="grams" type="number" min="0" step="any" value={grams} onChange={e => setGrams(e.target.value)} />
+          {selectedIngId && grams > 0 && ingMap[selectedIngId] && (
+            <div style={{ fontFamily: mono, fontSize: 12, color: C.blue, background: `${C.blue}15`, padding: "8px 10px", borderRadius: 6 }}>
+              Water: {(Number(grams) * ingMap[selectedIngId].rehydrationRatio).toFixed(1)}g · Cal: {(Number(grams) * ingMap[selectedIngId].calPerG).toFixed(0)}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button onClick={() => setAddingIngredient(false)}>Cancel</Button>
+            <Button variant="accent" disabled={!selectedIngId || !grams || Number(grams) <= 0} onClick={addItem}>Add</Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── Efficiency Rankings ───
+function EfficiencyRankings({ recipes, ingMap, onSelect }) {
+  const ranked = useMemo(() => {
+    return recipes
+      .map(r => {
+        const t = computeTotals(r.items || [], ingMap);
+        return { ...r, totals: t, calPerOz: t.dryWeightOz > 0 ? t.cal / t.dryWeightOz : 0, proteinPerOz: t.dryWeightOz > 0 ? t.protein / t.dryWeightOz : 0 };
+      })
+      .filter(r => r.totals.dryWeight > 0)
+      .sort((a, b) => b.calPerOz - a.calPerOz);
+  }, [recipes, ingMap]);
+
+  if (ranked.length === 0) return <EmptyState icon={Icons.fire} title="No recipes to rank" sub="Add ingredients to your recipes to see efficiency rankings" />;
+
+  const medalColors = [C.gold, C.silver, C.bronze];
+  const maxCal = ranked[0]?.calPerOz || 1;
+
+  return (
+    <div>
+      <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginBottom: 14, lineHeight: 1.5 }}>
+        Recipes ranked by caloric density — calories per ounce of dry weight. Higher = more energy per ounce of pack weight.
+      </div>
+      {ranked.map((r, i) => {
+        const barW = Math.max(8, (r.calPerOz / maxCal) * 100);
+        const medal = i < 3 ? medalColors[i] : null;
+        return (
+          <div key={r.id} onClick={() => onSelect(r.id)}
+            style={{
+              background: C.card, borderRadius: 10, border: `1px solid ${medal ? medal + "55" : C.border}`,
+              padding: "12px 16px", marginBottom: 8, position: "relative", overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = medal || C.accent}
+            onMouseLeave={e => e.currentTarget.style.borderColor = medal ? medal + "55" : C.border}>
+            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${barW}%`, background: medal ? medal + "12" : C.accent + "08", transition: "width 0.3s" }} />
+            <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 800, color: medal || C.textDim, minWidth: 28, textAlign: "center" }}>
+                {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.text }}>{r.name}</div>
+                <div style={{ fontFamily: mono, fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                  {r.totals.cal.toFixed(0)} cal · {r.totals.dryWeightOz.toFixed(1)} oz · {r.proteinPerOz.toFixed(1)}g prot/oz
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 800, color: medal || C.accent }}>{r.calPerOz.toFixed(0)}</div>
+                <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.06em" }}>cal/oz</div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main App ───
+export default function App() {
+  const [tab, setTab] = useState("recipes");
+  const [ingredients, setIngredients] = useState([]);
+  const [recipes, setRecipes] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [ingModal, setIngModal] = useState(null);
+  const [recipeModal, setRecipeModal] = useState(false);
+  const [newRecipeName, setNewRecipeName] = useState("");
+  const [activeRecipe, setActiveRecipe] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [ingRes, recRes] = await Promise.all([window.storage.get("bp-ingredients"), window.storage.get("bp-recipes")]);
+        if (ingRes?.value) setIngredients(JSON.parse(ingRes.value)); else setIngredients(defaultIngredients);
+        if (recRes?.value) setRecipes(JSON.parse(recRes.value));
+      } catch { setIngredients(defaultIngredients); }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const persist = useCallback(async (ings, recs) => {
+    try { await Promise.all([window.storage.set("bp-ingredients", JSON.stringify(ings)), window.storage.set("bp-recipes", JSON.stringify(recs))]); }
+    catch (e) { console.error("Storage error:", e); }
+  }, []);
+
+  const updateIngredients = (next) => { setIngredients(next); persist(next, recipes); };
+  const updateRecipes = (next) => { setRecipes(next); persist(ingredients, next); };
+
+  const saveIngredient = (ing) => {
+    if (ing.id) updateIngredients(ingredients.map(i => i.id === ing.id ? ing : i));
+    else updateIngredients([...ingredients, { ...ing, id: uid() }]);
+    setIngModal(null);
+  };
+  const deleteIngredient = (id) => {
+    updateIngredients(ingredients.filter(i => i.id !== id));
+    updateRecipes(recipes.map(r => ({ ...r, items: (r.items || []).filter(it => it.ingredientId !== id) })));
+  };
+  const createRecipe = () => {
+    if (!newRecipeName.trim()) return;
+    const r = { id: uid(), name: newRecipeName.trim(), items: [], servings: 1 };
+    updateRecipes([...recipes, r]);
+    setNewRecipeName(""); setRecipeModal(false); setActiveRecipe(r.id); setTab("recipes");
+  };
+  const updateRecipe = (u) => updateRecipes(recipes.map(r => r.id === u.id ? u : r));
+  const deleteRecipe = (id) => { updateRecipes(recipes.filter(r => r.id !== id)); if (activeRecipe === id) setActiveRecipe(null); };
+
+  const fileInputRef = useRef(null);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const exportData = () => {
+    const blob = new Blob([JSON.stringify({ ingredients, recipes }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url;
+    a.download = `trailbag-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click(); URL.revokeObjectURL(url); showToast("Data exported successfully");
+  };
+  const importData = (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!Array.isArray(data.ingredients) || !Array.isArray(data.recipes)) { showToast("Invalid file format", "error"); return; }
+        setIngredients(data.ingredients); setRecipes(data.recipes);
+        persist(data.ingredients, data.recipes); setActiveRecipe(null);
+        showToast(`Imported ${data.ingredients.length} ingredients & ${data.recipes.length} recipes`);
+      } catch { showToast("Failed to parse file", "error"); }
+    };
+    reader.readAsText(file); e.target.value = "";
+  };
+
+  if (!loaded) return <div style={{ fontFamily: font, color: C.textMuted, display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg }}>Loading…</div>;
+
+  const activeR = recipes.find(r => r.id === activeRecipe);
+  const ingMap = Object.fromEntries(ingredients.map(i => [i.id, i]));
+
+  return (
+    <div style={{ fontFamily: font, background: C.bg, color: C.text, minHeight: "100vh" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+      {/* Header */}
+      <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10, background: `linear-gradient(180deg, ${C.surface} 0%, ${C.bg} 100%)` }}>
+        <span style={{ color: C.accent }}>{Icons.mountain}</span>
+        <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>Trail<span style={{ color: C.accent }}>Bag</span></h1>
+        <span style={{ fontSize: 11, color: C.textDim, fontWeight: 500, marginLeft: 4, marginTop: 2 }}>Backpacking Recipes</span>
+        <div style={{ flex: 1 }} />
+        <Button small variant="ghost" onClick={() => fileInputRef.current?.click()} style={{ color: C.textMuted }}>{Icons.upload} Import</Button>
+        <Button small variant="ghost" onClick={exportData} style={{ color: C.textMuted }}>{Icons.download} Export</Button>
+        <input ref={fileInputRef} type="file" accept=".json" onChange={importData} style={{ display: "none" }} />
+      </div>
+
+      {toast && <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 2000, fontFamily: font, fontSize: 13, fontWeight: 600, padding: "10px 20px", borderRadius: 8, background: toast.type === "error" ? C.red : C.green, color: "#fff", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>{toast.msg}</div>}
+
+      {/* Tab Bar */}
+      <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
+        {[["recipes", "Recipes"], ["ingredients", "Ingredients"], ["rankings", "Rankings"]].map(([key, label]) => (
+          <button key={key} onClick={() => { setTab(key); setActiveRecipe(null); }}
+            style={{ flex: 1, padding: "12px 0", fontFamily: font, fontSize: 13, fontWeight: 700, background: "transparent", border: "none", cursor: "pointer", color: tab === key ? C.accent : C.textDim, borderBottom: tab === key ? `2px solid ${C.accent}` : "2px solid transparent", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 16px" }}>
+        {tab === "recipes" && !activeR && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 13, color: C.textDim }}>{recipes.length} recipe{recipes.length !== 1 ? "s" : ""}</span>
+              <Button variant="accent" onClick={() => setRecipeModal(true)}>{Icons.plus} New Recipe</Button>
+            </div>
+            {recipes.length === 0 ? <EmptyState icon={Icons.fire} title="No recipes yet" sub="Create your first backpacking meal" /> : recipes.map(r => {
+              const t = computeTotals(r.items || [], ingMap);
+              const cpo = t.dryWeightOz > 0 ? t.cal / t.dryWeightOz : 0;
+              return (
+                <div key={r.id} onClick={() => setActiveRecipe(r.id)} style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, padding: 16, marginBottom: 10, cursor: "pointer", transition: "border-color 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = C.accent} onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <div style={{ fontFamily: font, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{r.name}</div>
+                    {(r.servings || 1) > 1 && <span style={{ fontFamily: mono, fontSize: 11, color: C.green }}>{r.servings} servings</span>}
+                  </div>
+                  <div style={{ fontFamily: mono, fontSize: 12, color: C.textDim, display: "flex", gap: 14, flexWrap: "wrap" }}>
+                    <span>{(r.items || []).length} ing.</span>
+                    <span style={{ color: C.accent }}>{t.cal.toFixed(0)} cal</span>
+                    <span style={{ color: C.blue }}>{t.waterOz.toFixed(1)} oz water</span>
+                    <span>{t.dryWeightOz.toFixed(1)} oz dry</span>
+                    <span style={{ color: C.gold }}>{cpo.toFixed(0)} cal/oz</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === "recipes" && activeR && <RecipeDetail recipe={activeR} ingredients={ingredients} onBack={() => setActiveRecipe(null)} onUpdate={updateRecipe} onDelete={deleteRecipe} />}
+
+        {tab === "ingredients" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 13, color: C.textDim }}>{ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""}</span>
+              <Button variant="accent" onClick={() => setIngModal("new")}>{Icons.plus} New Ingredient</Button>
+            </div>
+            {ingredients.length === 0 ? <EmptyState icon={Icons.bag} title="No ingredients" sub="Add ingredients to use in recipes" /> : ingredients.map(ing => (
+              <div key={ing.id} style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, padding: "12px 16px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: font, fontSize: 14, fontWeight: 600 }}>{ing.name}</div>
+                  <div style={{ fontFamily: mono, fontSize: 11, color: C.textDim, marginTop: 3, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ color: C.blue }}>×{ing.rehydrationRatio} H₂O</span>
+                    <span style={{ color: C.accent }}>{ing.calPerG} cal/g</span>
+                    <span>P {ing.proteinPerG}g</span>
+                    <span>F {ing.fatPerG}g</span>
+                    <span>C {ing.carbPerG}g</span>
+                  </div>
+                </div>
+                <Button small variant="ghost" onClick={() => setIngModal({ ...ing })}>{Icons.edit}</Button>
+                <Button small variant="ghost" onClick={() => deleteIngredient(ing.id)} style={{ color: C.red }}>{Icons.trash}</Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "rankings" && <EfficiencyRankings recipes={recipes} ingMap={ingMap} onSelect={(id) => { setActiveRecipe(id); setTab("recipes"); }} />}
+      </div>
+
+      <Modal open={ingModal !== null} onClose={() => setIngModal(null)} title={ingModal === "new" ? "New Ingredient" : "Edit Ingredient"}>
+        <IngredientForm initial={ingModal !== "new" ? ingModal : undefined} onSave={saveIngredient} onCancel={() => setIngModal(null)} />
+      </Modal>
+      <Modal open={recipeModal} onClose={() => setRecipeModal(false)} title="New Recipe" width={360}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Input label="Recipe Name" value={newRecipeName} onChange={e => setNewRecipeName(e.target.value)} placeholder="e.g. Thai Peanut Noodles" onKeyDown={e => e.key === "Enter" && createRecipe()} />
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button onClick={() => setRecipeModal(false)}>Cancel</Button>
+            <Button variant="accent" disabled={!newRecipeName.trim()} onClick={createRecipe}>Create</Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}

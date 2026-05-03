@@ -1,0 +1,486 @@
+{
+  "ingredients": [
+    {
+      "id": "1",
+      "name": "Canned chicken",
+      "rehydrationRatio": 1.67,
+      "calPerG": 3.7,
+      "fatPerG": 0.086,
+      "sodiumPerG": 10.0,
+      "carbPerG": 0.0,
+      "fiberPerG": 0.0,
+      "proteinPerG": 0.71
+    },
+    {
+      "id": "2",
+      "name": "Turkey",
+      "rehydrationRatio": 1.05,
+      "calPerG": 4.5,
+      "fatPerG": 0.225,
+      "sodiumPerG": 2.1,
+      "carbPerG": 0.1,
+      "fiberPerG": 0.0,
+      "proteinPerG": 0.53
+    },
+    {
+      "id": "3",
+      "name": "Rice",
+      "rehydrationRatio": 2.22,
+      "calPerG": 4.1,
+      "fatPerG": 0.0,
+      "sodiumPerG": 0.0,
+      "carbPerG": 0.87,
+      "fiberPerG": 0.0,
+      "proteinPerG": 0.08
+    },
+    {
+      "id": "4",
+      "name": "Bell pepper",
+      "rehydrationRatio": 1.57,
+      "calPerG": 3.9,
+      "fatPerG": 0.038,
+      "sodiumPerG": 0.5,
+      "carbPerG": 0.49,
+      "fiberPerG": 0.26,
+      "proteinPerG": 0.13
+    },
+    {
+      "id": "5",
+      "name": "Onion",
+      "rehydrationRatio": 4.25,
+      "calPerG": 3.6,
+      "fatPerG": 0.0,
+      "sodiumPerG": 0.4,
+      "carbPerG": 0.69,
+      "fiberPerG": 0.26,
+      "proteinPerG": 0.13
+    },
+    {
+      "id": "6",
+      "name": "Spinach",
+      "rehydrationRatio": 5.0,
+      "calPerG": 2.6,
+      "fatPerG": 0.044,
+      "sodiumPerG": 8.8,
+      "carbPerG": 0.16,
+      "fiberPerG": 0.24,
+      "proteinPerG": 0.32
+    },
+    {
+      "id": "7",
+      "name": "Mushrooms",
+      "rehydrationRatio": 1.44,
+      "calPerG": 2.8,
+      "fatPerG": 0.038,
+      "sodiumPerG": 0.6,
+      "carbPerG": 0.29,
+      "fiberPerG": 0.13,
+      "proteinPerG": 0.39
+    },
+    {
+      "id": "8",
+      "name": "Angel hair pasta",
+      "rehydrationRatio": 2.45,
+      "calPerG": 4.1,
+      "fatPerG": 0.024,
+      "sodiumPerG": 0.0,
+      "carbPerG": 0.76,
+      "fiberPerG": 0.05,
+      "proteinPerG": 0.15
+    },
+    {
+      "id": "9",
+      "name": "Elbow pasta",
+      "rehydrationRatio": null,
+      "calPerG": 3.571,
+      "fatPerG": 0.018,
+      "sodiumPerG": 0.0,
+      "carbPerG": 0.696,
+      "fiberPerG": 0.054,
+      "proteinPerG": 0.125
+    },
+    {
+      "id": "10",
+      "name": "Pinto beans",
+      "rehydrationRatio": null,
+      "calPerG": 3.9,
+      "fatPerG": 0.019,
+      "sodiumPerG": 0.0,
+      "carbPerG": 0.57,
+      "fiberPerG": 0.14,
+      "proteinPerG": 0.24
+    },
+    {
+      "id": "11",
+      "name": "Black beans",
+      "rehydrationRatio": null,
+      "calPerG": 3.8,
+      "fatPerG": 0.014,
+      "sodiumPerG": 0.0,
+      "carbPerG": 0.43,
+      "fiberPerG": 0.25,
+      "proteinPerG": 0.25
+    },
+    {
+      "id": "12",
+      "name": "Quinoa",
+      "rehydrationRatio": null,
+      "calPerG": 4.3,
+      "fatPerG": 0.068,
+      "sodiumPerG": 0.3,
+      "carbPerG": 0.66,
+      "fiberPerG": 0.1,
+      "proteinPerG": 0.16
+    },
+    {
+      "id": "13",
+      "name": "Carrot",
+      "rehydrationRatio": 2.36,
+      "calPerG": 3.4,
+      "fatPerG": 0.017,
+      "sodiumPerG": 5.8,
+      "carbPerG": 0.57,
+      "fiberPerG": 0.23,
+      "proteinPerG": 0.08
+    },
+    {
+      "id": "14",
+      "name": "Tofu",
+      "rehydrationRatio": null,
+      "calPerG": 4.69,
+      "fatPerG": 0.3,
+      "sodiumPerG": 0.23,
+      "carbPerG": 0.011,
+      "fiberPerG": 0.056,
+      "proteinPerG": 0.56
+    },
+    {
+      "id": "15",
+      "name": "Tomato powder",
+      "rehydrationRatio": 2.17,
+      "calPerG": 2.333,
+      "fatPerG": 0.0,
+      "sodiumPerG": 25.333,
+      "carbPerG": 0.267,
+      "fiberPerG": 0.2,
+      "proteinPerG": 0.133
+    },
+    {
+      "id": "16",
+      "name": "Coconut milk powder",
+      "rehydrationRatio": 0.74,
+      "calPerG": 6.667,
+      "fatPerG": 0.667,
+      "sodiumPerG": 0.0,
+      "carbPerG": 0.222,
+      "fiberPerG": 0.0,
+      "proteinPerG": 0.056
+    },
+    {
+      "id": "17",
+      "name": "Parmesan cheese powder",
+      "rehydrationRatio": 1.92,
+      "calPerG": 5.0,
+      "fatPerG": 0.375,
+      "sodiumPerG": 30.0,
+      "carbPerG": 0.0,
+      "fiberPerG": 0.0,
+      "proteinPerG": 0.5
+    },
+    {
+      "id": "18",
+      "name": "Butter powder",
+      "rehydrationRatio": 1.5,
+      "calPerG": 6.667,
+      "fatPerG": 0.667,
+      "sodiumPerG": 7.222,
+      "carbPerG": 0.111,
+      "fiberPerG": 0.0,
+      "proteinPerG": 0.111
+    }
+  ],
+  "recipes": [
+    {
+      "id": "mopaju8ewx4nk",
+      "name": "Turkey Tomato Pasta",
+      "items": [
+        {
+          "ingredientId": "2",
+          "grams": 35
+        },
+        {
+          "ingredientId": "8",
+          "grams": 60
+        },
+        {
+          "ingredientId": "15",
+          "grams": 18
+        },
+        {
+          "ingredientId": "7",
+          "grams": 5
+        },
+        {
+          "ingredientId": "5",
+          "grams": 5
+        },
+        {
+          "ingredientId": "4",
+          "grams": 2
+        },
+        {
+          "ingredientId": "17",
+          "grams": 15
+        }
+      ]
+    },
+    {
+      "id": "comr8nfagszah",
+      "name": "Trail Mac & Cheese with Chicken",
+      "items": [
+        {
+          "ingredientId": "9",
+          "grams": 70
+        },
+        {
+          "ingredientId": "1",
+          "grams": 30
+        },
+        {
+          "ingredientId": "18",
+          "grams": 10
+        },
+        {
+          "ingredientId": "17",
+          "grams": 15
+        },
+        {
+          "ingredientId": "6",
+          "grams": 5
+        }
+      ]
+    },
+    {
+      "id": "hyax7eiw7zc47",
+      "name": "Coconut Curry Rice & Tofu",
+      "items": [
+        {
+          "ingredientId": "3",
+          "grams": 70
+        },
+        {
+          "ingredientId": "14",
+          "grams": 30
+        },
+        {
+          "ingredientId": "16",
+          "grams": 20
+        },
+        {
+          "ingredientId": "6",
+          "grams": 5
+        },
+        {
+          "ingredientId": "13",
+          "grams": 8
+        },
+        {
+          "ingredientId": "4",
+          "grams": 6
+        },
+        {
+          "ingredientId": "5",
+          "grams": 5
+        }
+      ]
+    },
+    {
+      "id": "zffyf80yhj2w9",
+      "name": "Southwest Black Bean Pasta",
+      "items": [
+        {
+          "ingredientId": "9",
+          "grams": 65
+        },
+        {
+          "ingredientId": "11",
+          "grams": 35
+        },
+        {
+          "ingredientId": "15",
+          "grams": 15
+        },
+        {
+          "ingredientId": "4",
+          "grams": 8
+        },
+        {
+          "ingredientId": "5",
+          "grams": 5
+        },
+        {
+          "ingredientId": "17",
+          "grams": 10
+        }
+      ]
+    },
+    {
+      "id": "uokmxpd3dmyaw",
+      "name": "Turkey Mushroom Angel Hair",
+      "items": [
+        {
+          "ingredientId": "8",
+          "grams": 65
+        },
+        {
+          "ingredientId": "2",
+          "grams": 35
+        },
+        {
+          "ingredientId": "7",
+          "grams": 8
+        },
+        {
+          "ingredientId": "18",
+          "grams": 8
+        },
+        {
+          "ingredientId": "17",
+          "grams": 10
+        },
+        {
+          "ingredientId": "5",
+          "grams": 5
+        }
+      ]
+    },
+    {
+      "id": "kg8vtnaobo6sq",
+      "name": "Pinto Bean & Rice Burrito Bowl",
+      "items": [
+        {
+          "ingredientId": "3",
+          "grams": 65
+        },
+        {
+          "ingredientId": "10",
+          "grams": 35
+        },
+        {
+          "ingredientId": "15",
+          "grams": 12
+        },
+        {
+          "ingredientId": "4",
+          "grams": 8
+        },
+        {
+          "ingredientId": "5",
+          "grams": 5
+        },
+        {
+          "ingredientId": "17",
+          "grams": 10
+        }
+      ]
+    },
+    {
+      "id": "qorebks72728b",
+      "name": "Quinoa Primavera",
+      "items": [
+        {
+          "ingredientId": "12",
+          "grams": 65
+        },
+        {
+          "ingredientId": "13",
+          "grams": 8
+        },
+        {
+          "ingredientId": "4",
+          "grams": 6
+        },
+        {
+          "ingredientId": "7",
+          "grams": 6
+        },
+        {
+          "ingredientId": "6",
+          "grams": 5
+        },
+        {
+          "ingredientId": "5",
+          "grams": 5
+        },
+        {
+          "ingredientId": "18",
+          "grams": 8
+        },
+        {
+          "ingredientId": "17",
+          "grams": 10
+        }
+      ]
+    },
+    {
+      "id": "yq9g8jh1tw9l4",
+      "name": "Creamy Tomato Chicken Pasta",
+      "items": [
+        {
+          "ingredientId": "9",
+          "grams": 65
+        },
+        {
+          "ingredientId": "1",
+          "grams": 30
+        },
+        {
+          "ingredientId": "15",
+          "grams": 15
+        },
+        {
+          "ingredientId": "16",
+          "grams": 12
+        },
+        {
+          "ingredientId": "6",
+          "grams": 5
+        },
+        {
+          "ingredientId": "5",
+          "grams": 5
+        }
+      ]
+    },
+    {
+      "id": "yyd400hwmhb1r",
+      "name": "Coconut Curry Quinoa & Black Beans",
+      "items": [
+        {
+          "ingredientId": "12",
+          "grams": 60
+        },
+        {
+          "ingredientId": "11",
+          "grams": 30
+        },
+        {
+          "ingredientId": "16",
+          "grams": 18
+        },
+        {
+          "ingredientId": "13",
+          "grams": 8
+        },
+        {
+          "ingredientId": "6",
+          "grams": 5
+        },
+        {
+          "ingredientId": "5",
+          "grams": 5
+        }
+      ]
+    }
+  ]
+}
